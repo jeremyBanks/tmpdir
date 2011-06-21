@@ -144,7 +144,13 @@ class TmpDir(object):
                     if os.path.commonprefix((abs_path, self.path)) != self.path:
                         raise ValueError("illegal (external) path in archive", abs_path)
                     
-                    archive.extract(file_info, path="")
+                    dir_, base = os.path.split(filename)
+                    
+                    if dir_ and not os.path.exists(dir_):
+                        os.makedirs(dir_)
+                    
+                    if base:
+                        archive.extract(file_info)
         
         return self
     
