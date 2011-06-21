@@ -46,12 +46,15 @@ class TmpDir(object):
             # move to a new path to immediately invalidate paths being deleted
             tmp_path = tempfile.mkdtemp()
             
-            os.rename(self.__outer_path, tmp_path)
+            os.rename(self.path, os.path.join(tmp_path, "_"))
+            self.closed = True
+            
             if not self.secure:
                 shutil.rmtree(tmp_path)
+                shutil.rmtree(self.__outer_path)
             else:
                 subprocess.check_call(["srm", "-rfs", "--", tmp_path])
-            self.closed = True
+                subprocess.check_call(["srm", "-rfs", "--", self.__outer_path])
     
     def __del__(self):
         self.close()
