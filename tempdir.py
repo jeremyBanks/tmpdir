@@ -6,15 +6,16 @@ import tarfile
 import os
 import os.path
 import subprocess
-try:     from io        import StringIO
-except:
- try:    from cStringIO import StringIO
- except: from StringIO  import StringIO
 
 class TempDir(object):
     """A convenient temporary directory."""
     
-    def __init__(self, inner_name=None):
+    def __init__(self, inner_name=None, secure=True):
+        if secure:
+            # confirm availability of secure remove command
+            subprocess.check_call(["which", "srm"])
+        self.secure = secure
+        
         self.__outer_path = tempfile.mkdtemp()
         self.inner_name = inner_name or "tmp"
         
@@ -25,7 +26,10 @@ class TempDir(object):
     
     def close(self):
         if not self.closed:
-            shutil.rmtree(self.__outer_path)
+            if not self.secure:
+                shutil.rmtree(self.__outer_path)
+            else:
+                subprocess.check_call(["srm", "-r", self.__outer_path])
             self.closed = True
     
     def __del__(self):
@@ -81,7 +85,6 @@ class TempDir(object):
     #
     # @classmethod .load(f, compression=None)
     # .dump(f, compression="bz2")
-    # .__reduce__() # .dump()s to a StringIO to be .load()ed.
     
     @classmethod
     def load(cls, f, compression=None, inner_name=None):
@@ -142,14 +145,8 @@ class TempDir(object):
                         for dirname in dirs:
                             tar.add(dirname)
                         break
-    
-    def __reduce__(self):
-        """Pickle by dumping the folder to a StringIO."""
-        
-        dumped = StingIO()
-        self.dump(dumped, "bz2")
-        
-        return (type(self).load, (dumped, "bz2", self.inner_name))
+
+load = TempDir.load
 
 class WorkingDirectoryContextManager(object):
     def __init__(self, path):
@@ -163,26 +160,31 @@ class WorkingDirectoryContextManager(object):
     def __exit__(self, xt, xv, tb):
         os.chdir(self.previous_paths.pop())
 
-def main(path):
+def main(path=None):
     """Opens a dumped compressed folder for the user, closing on newline."""
     
     import tempdir
     
-    with open(path) as f:
-        with tempdir.TempDir.load(f) as d:
-            print d.path
-            
-            print os.name
-            
+    if path is None:
+        d = tempdir.TempDir(secure=True)
+    else:
+        with open(path, "rb") as f:
+            d = tempdir.load(f, secure=True)
+    
+    with d:
+        print d.path
+        
+        print os.name
+        
+        try:
+            subprocess.call(("open", d.path))
+        except OSError:
             try:
-                subprocess.call(("open", d.path))
+                subprocess.call(("start", d.path), shell=True)
             except OSError:
-                try:
-                    subprocess.call(("start", d.path), shell=True)
-                except OSError:
-                    subprocess.call(("xdg-open", d.path))
-            
-            raw_input("Press enter to close folder...")
+                subprocess.call(("xdg-open", d.path))
+        
+        raw_input("Press enter to close folder...")
 
 if __name__ == "__main__":
     import sys
