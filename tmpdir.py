@@ -346,10 +346,13 @@ def main(raw_args=None):
     
     with d:
         print d.path
+        sys.stderr.write("[secure: %s] " % (d.secure))
+        sys.stderr.flush()
         
         if (hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
             and subprocess.call("which bash >/dev/null", shell=True) == 0):
-            sys.stdout.write("Close shell to remove folder...\n")
+            sys.stderr.write("Close shell to delete folder...\n")
+            sys.stderr.flush()
             subprocess.call(["bash", "--login"], cwd=d.path, env={"HISTFILE": ""})
         else:
             try:
@@ -358,9 +361,14 @@ def main(raw_args=None):
                 try:
                     subprocess.call(("start", d.path), shell=True)
                 except OSError:
-                    subprocess.call(("xdg-open", d.path))
+                    try:
+                        subprocess.call(("xdg-open", d.path))
+                    except OSError:
+                        sys.stderr.write("(Failed to display folder.) ")
             
-            raw_input("Press enter to remove folder...")
+            sys.stderr.write("Press enter to delete folder...")
+            sys.stderr.flush()
+            sys.stdin.read(1)
         
         if options.out:
             with open(options.out, "wb") as f:
