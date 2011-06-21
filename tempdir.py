@@ -8,12 +8,18 @@ import os.path
 import subprocess
 
 class TempDir(object):
-    """A convenient temporary directory."""
+    """A convenient temporary directory.
+    
+    The constructor has two optional arguments.
+    inner_name is the basename of the temporary directory.
+    secure uses the srm command on the directory once closed (slow).
+    """
     
     def __init__(self, inner_name=None, secure=True):
+        self.closed = True
         if secure:
             # confirm availability of secure remove command
-            subprocess.check_call(["which", "srm"])
+            subprocess.check_call("which srm >/dev/null", shell=True)
         self.secure = secure
         
         self.__outer_path = tempfile.mkdtemp()
@@ -26,10 +32,14 @@ class TempDir(object):
     
     def close(self):
         if not self.closed:
+            # move to a new path to immediately invalidate paths being deleted
+            tmp_path = tempfile.mkdtemp()
+            
+            os.rename(self.__outer_path, tmp_path)
             if not self.secure:
-                shutil.rmtree(self.__outer_path)
+                shutil.rmtree(tmp_path)
             else:
-                subprocess.check_call(["srm", "-r", self.__outer_path])
+                subprocess.check_call(["srm", "-rfs", "--", tmp_path])
             self.closed = True
     
     def __del__(self):
@@ -87,7 +97,7 @@ class TempDir(object):
     # .dump(f, compression="bz2")
     
     @classmethod
-    def load(cls, f, compression=None, inner_name=None):
+    def load(cls, f, compression=None, inner_name=None, secure=None):
         """Loads a temp directory from an optionally-compressed tar file.
         
         If compression is None, it will read the first two bytes of the
@@ -114,7 +124,7 @@ class TempDir(object):
             raise ValueError("Unknown compression type", compression)
         
         mode = mode="r:" + compression
-        self = cls(inner_name)
+        self = cls(inner_name, secure)
         
         with self.as_cwd():
             with contextlib.closing(tarfile.open(fileobj=f, mode=mode)) as tar:
@@ -169,12 +179,10 @@ def main(path=None):
         d = tempdir.TempDir(secure=True)
     else:
         with open(path, "rb") as f:
-            d = tempdir.load(f, secure=True)
+            d = tempdir.load(f)
     
     with d:
         print d.path
-        
-        print os.name
         
         try:
             subprocess.call(("open", d.path))
