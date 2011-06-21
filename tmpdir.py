@@ -71,30 +71,6 @@ class TmpDir(object):
     def __del__(self):
         self.close()
     
-    ##### Content Shortcuts
-    # 
-    # .open(path, ...) # an open() relative to this directory + $(mkdir -p)
-    # .__iter__() # os.walk()s contents by (path, subdirectories, files).
-    
-    def open(self, path, *a, **kw):
-        """Opens a file in the directory.
-        
-        Intermediary folders are automatically created for nonexistent files.
-        """
-        
-        path = os.path.join(self.path, path)
-        dir_path = os.path.dirname(path)
-        
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path)
-        
-        return open(path, *a, **kw)
-    
-    def __iter__(self):
-        """os.walk() the directory tree's (path, subdirectories, files)."""
-        
-        return os.walk(self.path)
-    
     ##### Context Managers
     # 
     # .as_cwd() # changes CWD to path, restores previous value on exit
@@ -185,15 +161,15 @@ class TmpDir(object):
             archive = tarfile.open(fileobj=f, mode="w:" + compression)
             archive_add = archive.add
         
-        with self.as_cwd():
-            with contextlib.closing(archive) as tar:
-                for (path, dirs, files) in self:
-                    if os.path.abspath(path) == self.path:
-                        for filename in files:
-                            archive_add(filename)
+        with contextlib.closing(archive) as tar:
+            with self.as_cwd():
+                for (path, dirs, files) in os.walk("."):
+                    for filename in files:
+                        archive_add(os.path.join(path, filename))
+                    
+                    if compression != "zip":
                         for dirname in dirs:
-                            archive_add(dirname)
-                        break
+                            archive_add(os.path.join(path, dirname))
 
 load = TmpDir.load
 
