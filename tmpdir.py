@@ -5,21 +5,31 @@ import shutil
 import tarfile
 import os
 import os.path
+import sys
 import subprocess
 
-class TempDir(object):
+class TmpDir(object):
     """A convenient temporary directory.
     
     The constructor has two optional arguments.
     inner_name is the basename of the temporary directory.
     secure uses the srm command on the directory once closed (slow).
+           if "attempt" will not fail if insecure.
     """
     
-    def __init__(self, inner_name=None, secure=True):
+    def __init__(self, inner_name=None, secure=False):
         self.closed = True
+        
         if secure:
             # confirm availability of secure remove command
-            subprocess.check_call("which srm >/dev/null", shell=True)
+            try:
+                subprocess.check_call("which srm >/dev/null", shell=True)
+                secure = True
+            except subprocess.CalledProcessError, e:    
+                if secure != "attempt":
+                    raise e
+                secure = False
+                    
         self.secure = secure
         
         self.__outer_path = tempfile.mkdtemp("", "")
@@ -156,7 +166,7 @@ class TempDir(object):
                             tar.add(dirname)
                         break
 
-load = TempDir.load
+load = TmpDir.load
 
 class WorkingDirectoryContextManager(object):
     def __init__(self, path):
@@ -170,35 +180,48 @@ class WorkingDirectoryContextManager(object):
     def __exit__(self, xt, xv, tb):
         os.chdir(self.previous_paths.pop())
 
-def main(path=None):
+def main(raw_args=None):
     """Opens a dumped compressed folder for the user, closing on newline."""
     
-    import tempdir
+    """TODO
+    
+    tmpdir  [-s,--secure] [-n,--not-secure] [archive-in] [-o,--out archive-out [--bz2] [--gz] [--tar]]
+    
+    """
+    
+    if raw_args is None:
+        raw_args = sys.argv[1:]
+    
+    if raw_args:
+        path = raw_args[0]
+    else:
+        path = None
+    
+    import tmpdir
     
     if path is None:
-        d = tempdir.TempDir(secure=True)
+        d = tmpdir.TmpDir(secure="attempt")
     else:
         with open(path, "rb") as f:
-            d = tempdir.load(f)
+            d = TmpDir.load(f)
     
     with d:
         print d.path
-        
-        try:
-            subprocess.call(("open", d.path))
-        except OSError:
-            try:
-                subprocess.call(("start", d.path), shell=True)
-            except OSError:
-                subprocess.call(("xdg-open", d.path))
         
         if (hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
             and subprocess.call("which bash >/dev/null", shell=True) == 0):
             sys.stdout.write("Close shell to remove folder...\n")
             subprocess.call(["bash", "--login"], cwd=d.path, env={"HISTFILE": ""})
         else:
+            try:
+                subprocess.call(("open", d.path))
+            except OSError:
+                try:
+                    subprocess.call(("start", d.path), shell=True)
+                except OSError:
+                    subprocess.call(("xdg-open", d.path))
+            
             raw_input("Press enter to remove folder...")
 
 if __name__ == "__main__":
-    import sys
-    sys.exit(main(*sys.argv[1:]))
+    sys.exit(main())
