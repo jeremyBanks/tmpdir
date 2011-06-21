@@ -51,9 +51,11 @@ class TmpDir(object):
         if not self.closed:
             # move to a new path to immediately invalidate paths being deleted
             tmp_path = tempfile.mkdtemp()
+            new_path = os.path.abspath(os.path.join(tmp_path, rand_name()))
             
-            os.rename(self.path, os.path.join(tmp_path, rand_name()))
+            os.rename(self.path, new_path)
             self.closed = True
+            self.path = new_path
             
             if not self.secure:
                 shutil.rmtree(tmp_path)
@@ -64,7 +66,7 @@ class TmpDir(object):
             else:
                 subprocess.check_call(["srm", "-rfs", "--", tmp_path])
                 subprocess.check_call(["srm", "-rfs", "--", self.__outer_path])
-    
+        
     def __del__(self):
         self.close()
     
@@ -296,6 +298,9 @@ def pseudosecure_delete_directory(path):
         for dirname in dirs:
             dirpath = os.path.abspath(os.path.join(os.path.join(path, subpath), dirname))
             os.rmdir(dirpath)
+    
+    # remove the top directory itself
+    shutil.rmtree(path)
 
 #######################################################################
 
@@ -309,6 +314,8 @@ def main(raw_args=None):
                       action="store_const", const=True)
     parser.add_option("-t", "--attempt-secure", dest="secure",
                       action="store_const", const="attempt")
+    parser.add_option("-u", "--pseudo-secure", dest="secure",
+                      action="store_const", const="pseudo")
     parser.add_option("-n", "--not-secure", dest="secure",
                       action="store_const", const=False)
     parser.add_option("-o", "--out", dest="out",
