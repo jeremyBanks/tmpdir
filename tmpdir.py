@@ -3,9 +3,9 @@ import contextlib
 import os
 import os.path
 import random
+import shlex
 import shutil
 import string
-import shlex
 import subprocess
 import sys
 import tarfile
@@ -317,7 +317,7 @@ the directory. Otherwise by default I'll prompt for a newline then exit, but
 any other command can be specified.
 
 If an empty directory is created, I automatically attempt to delete it
-securely. In other cases, you have options.""")
+securely. In other cases, use the options.""")
     
     parser.add_option("-s", "--secure", dest="secure",
                       action="store_const", const=True,
