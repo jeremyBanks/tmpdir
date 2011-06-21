@@ -383,7 +383,10 @@ securely. In other cases, use the options.""")
             sys.stderr.flush()
             sys.stdin.read(1)
         else:
-            subprocess.call(command, cwd=d.path, env={"HISTFILE": ""})
+            env = dict(os.environ)
+            env["HISTFILE"] = ""
+            
+            subprocess.call(command, cwd=d.path, env=env)
         
         if options.out:
             sys.stderr.write("Dumping directory contents...\n")
