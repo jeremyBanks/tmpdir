@@ -82,7 +82,7 @@ class TmpDir(object):
     ##### Context Managers
     # 
     # .as_cwd() # changes CWD to path, restores previous value on exit
-    # .__enter__() # .close()es/deletes folder on exit and behaves .as_cwd().
+    # .__enter__() # .close()es/deletes folder on exit
     
     def as_cwd(self):
         """Use .path as the cwd, restoring old one on exit."""
@@ -90,15 +90,9 @@ class TmpDir(object):
         return WorkingDirectoryContextManager(self.path)
     
     def __enter__(self):
-        """Use .path as the cwd, restoring old one and close()ing on exit."""
-        
-        self.__owd = os.getcwd()
-        os.chdir(self.path)
-        
         return self
     
-    def __exit__(self, xt, xv, tb):    
-        os.chdir(self.__owd)
+    def __exit__(self, xt, xv, tb):
         self.close()
     
     #### Serialization (tar)
@@ -169,41 +163,56 @@ class TmpDir(object):
 load = TmpDir.load
 
 class WorkingDirectoryContextManager(object):
-    def __init__(self, path):
+    def __init__(self, path, value=None):
         self.path = path
+        self.value = value
         self.previous_paths = []
     
     def __enter__(self):
         self.previous_paths.append(os.getcwd())
         os.chdir(self.path)
+        return self.value
     
     def __exit__(self, xt, xv, tb):
         os.chdir(self.previous_paths.pop())
 
 def main(raw_args=None):
-    """Opens a dumped compressed folder for the user, closing on newline."""
+    import optparse
+    import tmpdir
     
-    """TODO
+    parser = optparse.OptionParser(usage="Usage: %prog [options] [archive]")
     
-    tmpdir  [-s,--secure] [-n,--not-secure] [archive-in] [-o,--out archive-out [--bz2] [--gz] [--tar]]
+    parser.add_option("-s", "--secure", dest="secure",
+                      action="store_const", const=True)
+    parser.add_option("-t", "--attempt-secure", dest="secure",
+                      action="store_const", const="attempt")
+    parser.add_option("-n", "--not-secure", dest="secure",
+                      action="store_const", const=False)
+    parser.add_option("-o", "--out", dest="out",
+                      action="store", type="string", metavar="archive")
+    parser.set_defaults(secure=None, out=None)
+    options, args = parser.parse_args(raw_args)
     
-    """
-    
-    if raw_args is None:
-        raw_args = sys.argv[1:]
-    
-    if raw_args:
-        path = raw_args[0]
+    if len(args) > 1:
+        raise ArgumenError("Too many arguments.")
+    elif args:
+        path = args[0]
     else:
         path = None
     
-    import tmpdir
+    secure = options.secure
     
     if path is None:
-        d = tmpdir.TmpDir(secure="attempt")
+        if secure is None:
+            secure = "attempt"
+        
+        d = tmpdir.TmpDir(secure=secure)
     else:
+        if secure is None:
+            secure = False
+        
         with open(path, "rb") as f:
-            d = TmpDir.load(f)
+            d = TmpDir.load(f, secure=secure)
     
     with d:
         print d.path
@@ -222,6 +231,10 @@ def main(raw_args=None):
                     subprocess.call(("xdg-open", d.path))
             
             raw_input("Press enter to remove folder...")
+        
+        if options.out:
+            with open(options.out, "wb") as f:
+                d.dump(f)
 
 if __name__ == "__main__":
     sys.exit(main())
