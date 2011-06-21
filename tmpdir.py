@@ -7,6 +7,7 @@ import os
 import os.path
 import sys
 import subprocess
+import zipfile
 
 class TmpDir(object):
     """A convenient temporary directory.
@@ -115,30 +116,35 @@ class TmpDir(object):
             inner_name = os.path.splitext(os.path.split(f.inner_name)[0])[0]
         
         if compression is None:
-            magic_number = f.read(2)
-            f.seek(-2, os.SEEK_CUR)
-        
-            if magic_number == b"\x1F\x8B":
-                compression = "gz"
-            elif magic_number == b"BZ":
-                compression = "bz2"
-            else:
-                compression = ""
-        elif compression not in ("", "bz2", "gz"):
-            raise ValueError("Unknown compression type", compression)
+            compression = sniff_archive_type(f)
         
         mode = mode="r:" + compression
         self = cls(inner_name, secure)
         
+        if compression == "zip":
+            archive = zipfile.ZipFile(f, mode="r")
+            archive_infos = archive.infolist()
+        else:
+            if compression == "tar":
+                compression = ""
+            
+            archive = tarfile.open(fileobj=f, mode="r:" + compression)
+            archive_infos = iter(archive)
+        
         with self.as_cwd():
-            with contextlib.closing(tarfile.open(fileobj=f, mode=mode)) as tar:
-                for file_info in tar:
-                    abs_path = os.path.abspath(os.path.join(self.path, file_info.name))
+            with contextlib.closing(archive) as archive:
+                for file_info in archive_infos:
+                    try:
+                        filename = file_info.name
+                    except AttributeError:
+                        filename = file_info.filename
+                    
+                    abs_path = os.path.abspath(os.path.join(self.path, filename))
                     
                     if os.path.commonprefix((abs_path, self.path)) != self.path:
-                        raise ValueError("illegal (external) path in tar", abs_path)
+                        raise ValueError("illegal (external) path in archive", abs_path)
                     
-                    tar.extract(file_info, path="")
+                    archive.extract(file_info, path="")
         
         return self
     
@@ -146,18 +152,26 @@ class TmpDir(object):
         """Dumps a compressed-by-default tar of the directory to a file."""
         
         if compression is None:
-            compression = "bz2"
-        elif compression not in ("", "bz2", "gz"):    
-            raise ValueError("Unknown compression type", compression)
+            compression = sniff_archive_type(f, "bz2")
+        
+        if compression == "zip":
+            archive = zipfile.ZipFile(f, mode="w")
+            archive_add = archive.write
+        else:
+            if compression == "tar":
+                compression = ""
+            
+            archive = tarfile.open(fileobj=f, mode="w:" + compression)
+            archive_add = archive.add
         
         with self.as_cwd():
-            with contextlib.closing(tarfile.open(fileobj=f, mode="w:" + compression)) as tar:
+            with contextlib.closing(archive) as tar:
                 for (path, dirs, files) in self:
                     if os.path.abspath(path) == self.path:
                         for filename in files:
-                            tar.add(filename)
+                            archive_add(filename)
                         for dirname in dirs:
-                            tar.add(dirname)
+                            archive_add(dirname)
                         break
 
 load = TmpDir.load
@@ -235,6 +249,54 @@ def main(raw_args=None):
         if options.out:
             with open(options.out, "wb") as f:
                 d.dump(f)
+
+def sniff_archive_type(f, default="tar"):
+    """Attempts to determine the type of an archive.
+    
+    Uses file extensions and magic numbers."""
+    
+    types_by_extension = {
+        ".bz2": "bz2",
+        ".tbz": "bz2",
+        ".tbz2": "bz2",
+        ".zip": "zip",
+        ".gzip": "gz",
+        ".gz": "gz",
+        ".tgz": "gz",
+        ".tar": "tar"
+    }
+    
+    if isinstance(f, (str, unicode)):
+        _name = f
+        class f(object): 
+            name = _name
+    
+    if hasattr(f, "name"):
+        ext = os.path.splitext(f.name)[1]
+        
+        if ext in types_by_extension:
+            return types_by_extension[ext]
+    
+    if hasattr(f, "seek") and hasattr(f, "tell") and "r" in getattr(f, "mode", ""):
+        start = f.tell()
+        leading_two = f.read(2)
+        f.seek(start)
+        
+        if leading_two == b"\x1F\x8B":
+            return "gz"
+        elif leading_two == b"BZ":
+            return "bz2"
+        elif leading_two == b"PK":
+            return "zip"
+        else:
+            f.seek(257, os.SEEK_CUR)
+            ustar = f.read(5)
+            f.seek(start)
+            
+            if ustar == b"ustar":
+                return "tar"
+    
+    return default
 
 if __name__ == "__main__":
     sys.exit(main())
