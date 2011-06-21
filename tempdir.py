@@ -5,34 +5,36 @@ import shutil
 import tarfile
 import os
 import os.path
-try: from cStringIO import StringIO
+import subprocess
+try:     from io        import StringIO
 except:
-    try: from StringIO import StringIO
-    except: from io import StringIO
+ try:    from cStringIO import StringIO
+ except: from StringIO  import StringIO
 
 class TempDir(object):
-    """A temporary directory.
+    """A convenient temporary directory."""
     
-    - Absolute path is in .path.
-    - Deleted when .close()d or __exit__()ed.
-    - Iterate to os.walk (path, subdirectories, files).
-    - Enter or enter .as_cwd() to use as CWD.
-    - TempDir.from_tar(instance.tar()) # bz2 by default
-    - Picklable (though .path changes).
-    - You can .open() a file inside it.
-    """
-    
-    def __init__(self):
-        self.path = tempfile.mkdtemp()
+    def __init__(self, inner_name=None):
+        self.__outer_path = tempfile.mkdtemp()
+        self.inner_name = inner_name or "tmp"
+        
+        self.path = os.path.abspath(
+                        os.path.join(self.__outer_path, self.inner_name))
+        os.mkdir(self.path)
         self.closed = False
     
     def close(self):
         if not self.closed:
-            shutil.rmtree(self.path)
+            shutil.rmtree(self.__outer_path)
             self.closed = True
     
     def __del__(self):
         self.close()
+    
+    ##### Content Shortcuts
+    # 
+    # .open(path, ...) # an open() relative to this directory + $(mkdir -p)
+    # .__iter__() # os.walk()s contents by (path, subdirectories, files).
     
     def open(self, path, *a, **kw):
         """Opens a file in the directory.
@@ -49,83 +51,139 @@ class TempDir(object):
         return open(path, *a, **kw)
     
     def __iter__(self):
+        """os.walk() the directory tree's (path, subdirectories, files)."""
+        
         return os.walk(self.path)
     
-    @contextlib.contextmanager
+    ##### Context Managers
+    # 
+    # .as_cwd() # changes CWD to path, restores previous value on exit
+    # .__enter__() # .close()es/deletes folder on exit and behaves .as_cwd().
+    
     def as_cwd(self):
-        """Use .path as cwd."""
+        """Use .path as the cwd, restoring old one on exit."""
         
-        owd = os.getcwd()
-        os.chdir(self.path)
-        yield self
-        os.chdir(owd)
+        return WorkingDirectoryContextManager(self.path)
     
-    @contextlib.contextmanager
     def __enter__(self):
-        """Use .path as CWD, close when leaving."""
+        """Use .path as the cwd, restoring old one and close()ing on exit."""
         
-        owd = os.getcwd()
+        self.__owd = os.getcwd()
         os.chdir(self.path)
-        yield self
-        os.chdir(owd)
-        self.close()
-    
-    @classmethod
-    def from_tar(cls, f, compression=None, ):
-        """Loads a temp directory from an optionally-compressed tar file.
-        
-        A filename may be used instead of a file object."""
-        
-        if isinstance(f, (str, unicode)):
-            f = open(f, "rb")
-            closing_f = True
-        else:
-            closing_f = False
-        
-        try:
-            if compression is None:
-                magic_number = f.read(2)
-                f.seek(-2, os.SEEK_CUR)
-            
-                if magic_number == b"\x1F\x8B":
-                    compression = "gz"
-                elif magic_number == b"BZ":
-                    compression = "bz2"
-            
-            mode = mode="r:{0}".format(compression or "")
-            self = cls()
-            
-            with self.as_cwd:
-                with tarfile.open(fileobj=f, mode=mode) as tar:
-                    # for each file: extract!
-                    after checking that 
-                    os.path.abspath(os.path.realpath())
-                    can be split() repeatedly to end up with
-                    os.path.abspath(os.getcwd())
-        finally:
-            if closing_f:
-                f.close()
         
         return self
     
-    def tar(self, compression="bz2"):
-        """Returns a named temp file of this directory, tarred."""
+    def __exit__(self, xt, xv, tb):    
+        os.chdir(self.__owd)
+        self.close()
+    
+    #### Serialization (tar)
+    #
+    # @classmethod .load(f, compression=None)
+    # .dump(f, compression="bz2")
+    # .__reduce__() # .dump()s to a StringIO to be .load()ed.
+    
+    @classmethod
+    def load(cls, f, compression=None, inner_name=None):
+        """Loads a temp directory from an optionally-compressed tar file.
         
-        with self:
-            return a named temp file containing a compressed-by-default
-            tar archive of this folder.
+        If compression is None, it will read the first two bytes of the
+        stream to look for gzip or bz2 magic numbers, then seek back. To
+        disable this (if your file object doesn't support it) you can use
+        the null string "" to indicate an uncompressed tar. Other options
+        are "bz2" and "gz".
+        """
+        
+        if inner_name is None and hasattr(f, "inner_name"):
+            inner_name = os.path.splitext(os.path.split(f.inner_name)[0])[0]
+        
+        if compression is None:
+            magic_number = f.read(2)
+            f.seek(-2, os.SEEK_CUR)
+        
+            if magic_number == b"\x1F\x8B":
+                compression = "gz"
+            elif magic_number == b"BZ":
+                compression = "bz2"
+            else:
+                compression = ""
+        elif compression not in ("", "bz2", "gz"):
+            raise ValueError("Unknown compression type", compression)
+        
+        mode = mode="r:" + compression
+        self = cls(inner_name)
+        
+        with self.as_cwd():
+            with contextlib.closing(tarfile.open(fileobj=f, mode=mode)) as tar:
+                for file_info in tar:
+                    abs_path = os.path.abspath(os.path.join(self.path, file_info.name))
+                    
+                    if os.path.commonprefix((abs_path, self.path)) != self.path:
+                        raise ValueError("illegal (external) path in tar", abs_path)
+                    
+                    tar.extract(file_info, path="")
+        
+        return self
+    
+    def dump(self, f, compression=None):
+        """Dumps a compressed-by-default tar of the directory to a file."""
+        
+        if compression is None:
+            compression = "bz2"
+        elif compression not in ("", "bz2", "gz"):    
+            raise ValueError("Unknown compression type", compression)
+        
+        with self.as_cwd():
+            with contextlib.closing(tarfile.open(fileobj=f, mode="w:" + compression)) as tar:
+                for (path, dirs, files) in self:
+                    if os.path.abspath(path) == self.path:
+                        for filename in files:
+                            tar.add(filename)
+                        for dirname in dirs:
+                            tar.add(dirname)
+                        break
     
     def __reduce__(self):
-        """Pickle as a tar in a StringIO()."""
+        """Pickle by dumping the folder to a StringIO."""
         
-        tar_in_memory = StingIO()
-        tarred = self.tar()
+        dumped = StingIO()
+        self.dump(dumped, "bz2")
         
-        while True:
-            data = tarred.read(4096)
-            if data:
-                tar_in_memory.write(data)
-            else:
-                break
-        
-        return (type(self).from_tar, (tar_in_memory,))
+        return (type(self).load, (dumped, "bz2", self.inner_name))
+
+class WorkingDirectoryContextManager(object):
+    def __init__(self, path):
+        self.path = path
+        self.previous_paths = []
+    
+    def __enter__(self):
+        self.previous_paths.append(os.getcwd())
+        os.chdir(self.path)
+    
+    def __exit__(self, xt, xv, tb):
+        os.chdir(self.previous_paths.pop())
+
+def main(path):
+    """Opens a dumped compressed folder for the user, closing on newline."""
+    
+    import tempdir
+    
+    with open(path) as f:
+        with tempdir.TempDir.load(f) as d:
+            print d.path
+            
+            print os.name
+            
+            try:
+                subprocess.call(("open", d.path))
+            except OSError:
+                try:
+                    subprocess.call(("start", d.path), shell=True)
+                except OSError:
+                    subprocess.call(("xdg-open", d.path))
+            
+            raw_input("Press enter to close folder...")
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main(*sys.argv[1:]))
