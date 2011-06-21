@@ -226,7 +226,7 @@ def main(raw_args=None):
             secure = False
         
         with open(path, "rb") as f:
-            d = TmpDir.load(f, secure=secure)
+            d = TmpDir.load(f, inner_name=os.path.basename(path), secure=secure)
     
     with d:
         print d.path
