@@ -1,12 +1,14 @@
 #!/usr/bin/env python2.6
 import contextlib
-import tempfile
-import shutil
-import tarfile
 import os
 import os.path
-import sys
+import random
+import shutil
+import string
 import subprocess
+import sys
+import tarfile
+import tempfile
 import zipfile
 
 class TmpDir(object):
@@ -21,16 +23,20 @@ class TmpDir(object):
     def __init__(self, inner_name=None, secure=False):
         self.closed = True
         
-        if secure:
+        if secure not in ("attempt", "pseudo"):
+            secure = bool(secure)
+        
+        if secure == True or secure == "attempt":
             # confirm availability of secure remove command
             try:
                 subprocess.check_call("which srm >/dev/null", shell=True)
                 secure = True
-            except subprocess.CalledProcessError, e:    
-                if secure != "attempt":
+            except subprocess.CalledProcessError, e:
+                if secure == "attempt":
+                    secure = "pseudo"
+                else:
                     raise e
-                secure = False
-                    
+        
         self.secure = secure
         
         self.__outer_path = tempfile.mkdtemp("", "")
@@ -46,12 +52,15 @@ class TmpDir(object):
             # move to a new path to immediately invalidate paths being deleted
             tmp_path = tempfile.mkdtemp()
             
-            os.rename(self.path, os.path.join(tmp_path, "_"))
+            os.rename(self.path, os.path.join(tmp_path, rand_name()))
             self.closed = True
             
             if not self.secure:
                 shutil.rmtree(tmp_path)
                 shutil.rmtree(self.__outer_path)
+            elif self.secure == "pseudo":
+                pseudosecure_delete_directory(tmp_path)
+                pseudosecure_delete_directory(self.__outer_path)
             else:
                 subprocess.check_call(["srm", "-rfs", "--", tmp_path])
                 subprocess.check_call(["srm", "-rfs", "--", self.__outer_path])
@@ -199,6 +208,97 @@ class WorkingDirectoryContextManager(object):
     def __exit__(self, xt, xv, tb):
         os.chdir(self.previous_paths.pop())
 
+def sniff_archive_type(f, default="tar"):
+    """Attempts to determine the type of an archive.
+    
+    Uses file extensions and magic numbers."""
+    
+    types_by_extension = {
+        ".bz2": "bz2",
+        ".tbz": "bz2",
+        ".tbz2": "bz2",
+        ".zip": "zip",
+        ".gzip": "gz",
+        ".gz": "gz",
+        ".tgz": "gz",
+        ".tar": "tar"
+    }
+    
+    if isinstance(f, (str, unicode)):
+        _name = f
+        class f(object): 
+            name = _name
+    
+    if hasattr(f, "name"):
+        ext = os.path.splitext(f.name)[1]
+        
+        if ext in types_by_extension:
+            return types_by_extension[ext]
+    
+    if hasattr(f, "seek") and hasattr(f, "tell") and "r" in getattr(f, "mode", ""):
+        start = f.tell()
+        leading_two = f.read(2)
+        f.seek(start)
+        
+        if leading_two == b"\x1F\x8B":
+            return "gz"
+        elif leading_two == b"BZ":
+            return "bz2"
+        elif leading_two == b"PK":
+            return "zip"
+        else:
+            f.seek(257, os.SEEK_CUR)
+            ustar = f.read(5)
+            f.seek(start)
+            
+            if ustar == b"ustar":
+                return "tar"
+    
+    return default
+
+def rand_name(length=8, chars=string.ascii_letters + string.digits + "_"):
+    return "".join(random.choice(chars) for i in range(length))
+
+def pseudosecure_delete_directory(path):
+    # zero out each file
+    for (subpath, dirs, files) in os.walk(path):
+        for filename in files:
+            filepath = os.path.abspath(os.path.join(path, subpath, filename))
+            
+            bytes_to_overwrite = os.path.getsize(filepath)
+            
+            with open(filepath, "r+") as f:
+                f.seek(0)
+                
+                while bytes_to_overwrite > 0:
+                    n = min(bytes_to_overwrite, 1024)
+                    f.write(b"\x00" * n)
+                    f.flush()
+                    os.fsync(f.fileno())
+                    bytes_to_overwrite -= n
+    
+    # rename each file and directory randomly
+    for (subpath, dirs, files) in os.walk(path, topdown=False):
+        for filename in list(files):
+            filepath = os.path.abspath(os.path.join(os.path.join(path, subpath), filename))
+            randpath = os.path.abspath(os.path.join(os.path.join(path, subpath), rand_name(8) + ".tmp"))
+            os.rename(filepath, randpath)
+        for dirname in list(dirs):
+            dirpath = os.path.abspath(os.path.join(os.path.join(path, subpath), dirname))
+            randpath = os.path.abspath(os.path.join(os.path.join(path, subpath), rand_name(8)))
+            os.rename(dirpath, randpath)
+    
+    # delete everything, bottom-up
+    for (subpath, dirs, files) in os.walk(path, topdown=False):
+        for filename in files:
+            filepath = os.path.abspath(os.path.join(os.path.join(path, subpath), filename))
+            os.remove(filepath)
+        for dirname in dirs:
+            dirpath = os.path.abspath(os.path.join(os.path.join(path, subpath), dirname))
+            os.rmdir(dirpath)
+
+#######################################################################
+
 def main(raw_args=None):
     import optparse
     import tmpdir
@@ -259,53 +359,6 @@ def main(raw_args=None):
             with open(options.out, "wb") as f:
                 d.dump(f)
 
-def sniff_archive_type(f, default="tar"):
-    """Attempts to determine the type of an archive.
-    
-    Uses file extensions and magic numbers."""
-    
-    types_by_extension = {
-        ".bz2": "bz2",
-        ".tbz": "bz2",
-        ".tbz2": "bz2",
-        ".zip": "zip",
-        ".gzip": "gz",
-        ".gz": "gz",
-        ".tgz": "gz",
-        ".tar": "tar"
-    }
-    
-    if isinstance(f, (str, unicode)):
-        _name = f
-        class f(object): 
-            name = _name
-    
-    if hasattr(f, "name"):
-        ext = os.path.splitext(f.name)[1]
-        
-        if ext in types_by_extension:
-            return types_by_extension[ext]
-    
-    if hasattr(f, "seek") and hasattr(f, "tell") and "r" in getattr(f, "mode", ""):
-        start = f.tell()
-        leading_two = f.read(2)
-        f.seek(start)
-        
-        if leading_two == b"\x1F\x8B":
-            return "gz"
-        elif leading_two == b"BZ":
-            return "bz2"
-        elif leading_two == b"PK":
-            return "zip"
-        else:
-            f.seek(257, os.SEEK_CUR)
-            ustar = f.read(5)
-            f.seek(start)
-            
-            if ustar == b"ustar":
-                return "tar"
-    
-    return default
 
 if __name__ == "__main__":
     sys.exit(main())
