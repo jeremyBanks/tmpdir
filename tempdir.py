@@ -22,7 +22,7 @@ class TempDir(object):
             subprocess.check_call("which srm >/dev/null", shell=True)
         self.secure = secure
         
-        self.__outer_path = tempfile.mkdtemp()
+        self.__outer_path = tempfile.mkdtemp("", "")
         self.inner_name = inner_name or "tmp"
         
         self.path = os.path.abspath(
