@@ -5,6 +5,7 @@ import os.path
 import random
 import shutil
 import string
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -308,20 +309,46 @@ def main(raw_args=None):
     import optparse
     import tmpdir
     
-    parser = optparse.OptionParser(usage="Usage: %prog [options] [archive]")
+    parser = optparse.OptionParser(usage="""Usage: %prog [options] [archive]
+
+Creates a temporary directory, optionally loading the contents of an archive
+(tar, tgz, tbz2 or zip). If run from a shell, opens a bash login shell inside
+the directory. Otherwise by default I'll prompt for a newline then exit, but
+any other command can be specified.
+
+If an empty directory is created, I automatically attempt to delete it
+securely. In other cases, you have options.""")
     
     parser.add_option("-s", "--secure", dest="secure",
-                      action="store_const", const=True)
-    parser.add_option("-t", "--attempt-secure", dest="secure",
-                      action="store_const", const="attempt")
+                      action="store_const", const=True,
+                      help="delete the folder with srm --simple")
     parser.add_option("-u", "--pseudo-secure", dest="secure",
-                      action="store_const", const="pseudo")
+                      action="store_const", const="pseudo",
+                      help="delete the folder in a maybe-secure way")
+    parser.add_option("-t", "--attempt-secure", dest="secure",
+                      action="store_const", const="attempt",
+                      help="try --secure, fall back to --pseudo-secure")
     parser.add_option("-n", "--not-secure", dest="secure",
-                      action="store_const", const=False)
+                      action="store_const", const=False,
+                        help="delete the folder normally")
+    
     parser.add_option("-o", "--out", dest="out",
-                      action="store", type="string", metavar="archive")
-    parser.set_defaults(secure=None, out=None)
+                      action="store", type="string", metavar="ARCHIVE",
+                      help="save an archive of the directory as this filename")
+    parser.add_option("-c", "--command", dest="command",
+                      action="store", type="string", metavar="COMMAND",
+                      help="run this command in directory instead of default")
+    
+    parser.set_defaults(secure=None, out=None, command=None)
     options, args = parser.parse_args(raw_args)
+    
+    if options.command is None:
+        if hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+            command = ["bash", "--login"]
+        else:
+            command = ["read", "-p", "Press enter to delete folder..."]
+    else:
+        command = shlex.split(options.command)
     
     if len(args) > 1:
         raise ArgumenError("Too many arguments.")
@@ -346,33 +373,28 @@ def main(raw_args=None):
     
     with d:
         print d.path
+        
         sys.stderr.write("[secure: %s] " % (d.secure))
+        sys.stderr.write("Initialized temporary directory.\n")
         sys.stderr.flush()
         
-        if (hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
-            and subprocess.call("which bash >/dev/null", shell=True) == 0):
-            sys.stderr.write("Close shell to delete folder...\n")
-            sys.stderr.flush()
-            subprocess.call(["bash", "--login"], cwd=d.path, env={"HISTFILE": ""})
-        else:
-            try:
-                subprocess.call(("open", d.path))
-            except OSError:
-                try:
-                    subprocess.call(("start", d.path), shell=True)
-                except OSError:
-                    try:
-                        subprocess.call(("xdg-open", d.path))
-                    except OSError:
-                        sys.stderr.write("(Failed to display folder.) ")
-            
-            sys.stderr.write("Press enter to delete folder...")
+        if len(command) == 3 and command[:2] == ["read", "-p"]:
+            sys.stderr.write(command[2])
             sys.stderr.flush()
             sys.stdin.read(1)
+        else:
+            subprocess.call(command, cwd=d.path, env={"HISTFILE": ""})
         
         if options.out:
+            sys.stderr.write("Dumping directory contents...\n")
+            sys.stderr.flush()
+            
             with open(options.out, "wb") as f:
                 d.dump(f)
+        
+        sys.stderr.write("[secure: %s] " % (d.secure))
+        sys.stderr.write("Deleting temporary directory.\n")
+        sys.stderr.flush()
 
 
 if __name__ == "__main__":
