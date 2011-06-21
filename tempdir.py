@@ -192,7 +192,12 @@ def main(path=None):
             except OSError:
                 subprocess.call(("xdg-open", d.path))
         
-        raw_input("Press enter to close folder...")
+        if (hasattr(sys.stdin, "isatty") and sys.stdin.isatty()
+            and subprocess.call("which bash >/dev/null", shell=True) == 0):
+            sys.stdout.write("Close shell to remove folder...\n")
+            subprocess.call(["bash", "--login"], cwd=d.path, env={"HISTFILE": ""})
+        else:
+            raw_input("Press enter to remove folder...")
 
 if __name__ == "__main__":
     import sys
