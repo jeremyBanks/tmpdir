@@ -12,6 +12,13 @@ url = "https://github.com/jeremybanks/tmpdir"
 pypi_url = "http://pypi.python.org/pypi/" + name
 pypi_versioned_url = "http://pypi.python.org/pypi/" + name + "/" + version
 
+description = "A module and command-line tool for working with temporary directories."
+
+try:
+    long_description = open(os.path.join(os.path.dirname(__file__), "README.md")).read()
+except Exception:
+    long_description = None
+
 setuptools.setup(
     name = name,
     version = version,
@@ -19,8 +26,8 @@ setuptools.setup(
     url = url,
     download_url = pypi_versioned_url,
     
-    description = "A module and command-line tool for working with temporary directories.",
-    long_description = open(os.path.join(os.path.dirname(__file__), "README.md")).read(),
+    description = description,
+    long_description = long_description,
     
     py_modules = ["tmpdir"],
     

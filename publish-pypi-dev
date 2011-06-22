@@ -1,3 +1,4 @@
 #!/bin/sh
 git commit . -m "publishing to pypi..." # if not committed already
-sudo python2.6 setup.py build sdist install upload # publish!
+sudo python2.6 setup.py sdist install
+sudo python2.7 setup.py sdist upload
