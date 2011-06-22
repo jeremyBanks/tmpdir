@@ -19,7 +19,8 @@ setuptools.setup(
     url = url,
     download_url = pypi_versioned_url,
     
-    description = "A module and command-line tool for working with temporary directories. https://github.com/jeremybanks/tmpdir.",
+    description = "A module and command-line tool for working with temporary directories.",
+    long_description = open(os.path.join(os.path.dirname(__file__), "readme")).read(),
     
     py_modules = ["tmpdir"],
     
