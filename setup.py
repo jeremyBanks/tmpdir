@@ -20,7 +20,7 @@ setuptools.setup(
     download_url = pypi_versioned_url,
     
     description = "A module and command-line tool for working with temporary directories.",
-    long_description = open(os.path.join(os.path.dirname(__file__), "readme")).read(),
+    long_description = open(os.path.join(os.path.dirname(__file__), "README.md")).read(),
     
     py_modules = ["tmpdir"],
     
