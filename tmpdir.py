@@ -40,7 +40,7 @@ class TmpDir(object):
         
         self.secure = secure
         
-        self.__outer_path = tempfile.mkdtemp("", "")
+        self.__outer_path = tempfile.mkdtemp()
         self.inner_name = inner_name or "tmp"
         
         self.path = os.path.abspath(
@@ -149,7 +149,7 @@ class TmpDir(object):
         """Dumps a compressed-by-default tar of the directory to a file."""
         
         if compression is None:
-            compression = sniff_archive_type(f, "bz2")
+            compression = sniff_archive_type(f, "gz")
         
         if compression == "zip":
             archive = zipfile.ZipFile(f, mode="w")
@@ -335,25 +335,35 @@ securely. In other cases, use the options.""")
     
     secure = options.secure
     
+    if secure is None:
+        if path:
+            secure = False
+        else:
+            secure = "attempt"
+    
     if path is None:
         if secure is None:
             secure = "attempt"
         
+        sys.stderr.write("Initializing temporary directory... ")
         d = tmpdir.TmpDir(secure=secure)
     else:
         if secure is None:
             secure = False
         
+        sys.stderr.write("Loading archive to temporary directory... ")
+        
         with open(path, "rb") as f:
             d = TmpDir.load(f, inner_name=os.path.basename(path), secure=secure)
     
     with d:
-        print d.path
-        
-        sys.stderr.write("[secure: %s] " % (d.secure))
-        sys.stderr.write("Initialized temporary directory.\n")
+        sys.stderr.write("(secure delete: %s)\n" % (d.secure))
         sys.stderr.flush()
         
+        print d.path
+        
+        sys.stderr.write("----" * 4 + "\n")
+
         if len(command) == 3 and command[:2] == ["read", "-p"]:
             sys.stderr.write(command[2])
             sys.stderr.flush()
@@ -364,15 +374,17 @@ securely. In other cases, use the options.""")
             
             subprocess.call(command, cwd=d.path, env=env)
         
+        sys.stderr.write("----"  * 4 + "\n")
+        
         if options.out:
-            sys.stderr.write("Dumping directory contents...\n")
+            sys.stderr.write("Archiving directory contents...\n")
             sys.stderr.flush()
             
             with open(options.out, "wb") as f:
                 d.dump(f)
         
-        sys.stderr.write("[secure: %s] " % (d.secure))
-        sys.stderr.write("Deleting temporary directory.\n")
+        sys.stderr.write("Deleting temporary directory... ")
+        sys.stderr.write("(secure delete: %s)\n" % (d.secure))
         sys.stderr.flush()
 
 
