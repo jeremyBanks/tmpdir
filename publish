@@ -1,2 +1,0 @@
-git commit . -m publishing
-sudo python2.6 setup.py build sdist install upload

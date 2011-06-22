@@ -74,7 +74,7 @@ class TmpDir(object):
     ##### Context Managers
     # 
     # .as_cwd() # changes CWD to path, restores previous value on exit
-    # .__enter__() # .close()es/deletes folder on exit
+    # .__enter__() # .close()es/deletes directory on exit
     
     def as_cwd(self):
         """Use .path as the cwd, restoring old one on exit."""
@@ -297,16 +297,16 @@ securely. In other cases, use the options.""")
     
     parser.add_option("-s", "--secure", dest="secure",
                       action="store_const", const=True,
-                      help="delete the folder with srm --simple")
+                      help="delete the directory with srm --simple")
     parser.add_option("-u", "--pseudo-secure", dest="secure",
                       action="store_const", const="pseudo",
-                      help="delete the folder in a maybe-secure way")
+                      help="delete the directory in a maybe-secure way")
     parser.add_option("-t", "--attempt-secure", dest="secure",
                       action="store_const", const="attempt",
                       help="try --secure, fall back to --pseudo-secure")
     parser.add_option("-n", "--not-secure", dest="secure",
                       action="store_const", const=False,
-                        help="delete the folder normally")
+                        help="delete the directory normally")
     
     parser.add_option("-o", "--out", dest="out",
                       action="store", type="string", metavar="ARCHIVE",
@@ -322,7 +322,7 @@ securely. In other cases, use the options.""")
         if hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
             command = ["bash", "--login"]
         else:
-            command = ["read", "-p", "Press enter to delete folder..."]
+            command = ["read", "-p", "Press enter to delete directory..."]
     else:
         command = shlex.split(options.command)
     
