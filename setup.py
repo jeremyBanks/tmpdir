@@ -3,17 +3,21 @@ import setuptools
 import datetime
 import os.path
 
-name = "tmpdir"
+# timestamped 0.0.dev versions
 version = datetime.datetime.utcnow().strftime("0.0.dev-%Y-%m-%dT%H%MZ")
 
-pypi_download_url = "http://pypi.python.org/pypi/" + name + "/" + version
+name = "tmpdir"
+
+url = "https://github.com/jeremybanks/tmpdir"
+pypi_url = "http://pypi.python.org/pypi/" + name
+pypi_versioned_url = "http://pypi.python.org/pypi/" + name + "/" + version
 
 setuptools.setup(
     name = name,
     version = version,
     
-    url = "http://pypi.python.org/pypi/" + name,
-    download_url = pypi_download_url,
+    url = url,
+    download_url = pypi_versioned_url,
     
     description = "A module and command-line tool for working with temporary directories.",
     
