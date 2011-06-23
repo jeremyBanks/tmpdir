@@ -28,18 +28,28 @@ it, then deletes it. All options/arguments are optional.
                dumps folder contents into an archive after command exits.
            
            -c, --command="foo [bar bar bar...]"
+           -h, --shell="echo foo > bar"
                specifies the command to run in the directory.
+               use --shell to run inside /bin/sh.
            
-           -s, --secure
-               uses srm (secure remove) to erase directory.
-               fails if srm is unavailable.
-           -u, --pseudo-secure
-               attempts to overwrite files before erasing, providing some
-               security on some platforms.
-           -t, --attempt-secure
-               attempts to use --secure, falling back to --pseudo-secure.
-           -n, --not-secure
-               deletes directory normally.
+           -d, --delete=secure
+                           uses srm --simple to delete directory.
+                           fails if srm command is unavailable.
+                       =pseudo-secure (default for empty directories)
+                           overwrites and renames files before erasing,
+                           providing some security on some platforms.                          
+                       =attempt-secure (default for loaded archives)
+                           attempts --secure, falls back to --pseudo-secure.
+                       =not-secure
+                           deletes directory normally.
+           
+           -r, --on-error=ignore
+                             discard subcommand exit status.
+                         =fail (default)
+                             returns exit status from subcommand.
+                         =abort
+                             returns exit status from subcommand, and
+                             does not archive if it's nonzero.
 
 If a command isn't given, it defaults to `bash --login` if run from a shell
 and `read -p "Press enter to delete directory..."` otherwise.
