@@ -90,7 +90,7 @@ class TmpDir(object):
     #### Serialization (tar)
     #
     # @classmethod .load(f, compression=None)
-    # .dump(f, compression="bz2")
+    # .dump(f, compression="gz")
     
     @classmethod
     def load(cls, f, compression=None, inner_name=None, secure=None):
@@ -107,7 +107,7 @@ class TmpDir(object):
             inner_name = os.path.splitext(os.path.split(f.inner_name)[0])[0]
         
         if compression is None:
-            compression = sniff_archive_type(f)
+            compression = sniff_archive_type(f, "tar")
         
         mode = mode="r:" + compression
         self = cls(inner_name, secure)

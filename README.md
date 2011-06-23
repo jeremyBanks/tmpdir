@@ -1,10 +1,12 @@
 tmpdir
 ======
 
+<https://github.com/jeremybanks/tmpdir>
+
 tmpdir is a Python 2.6/2.7 module and command-line tool for working with
 temporary directories. It reads and writes tar, tgz, tbz2 and zip archives.
 
-It's available in PyPi, so you can install with setuptools...
+tmpdir is available [in PyPi][1], so you can install with setuptools...
 
     $ easy_install tmpdir
 
@@ -13,6 +15,8 @@ It's available in PyPi, so you can install with setuptools...
     $ pip install tmpdir
 
 **It's not stable yet**, but is mostly working.
+
+ [1]: http://pypi.python.org/pypi/tmpdir
 
 Command-line Tool
 -----------------
@@ -82,5 +86,27 @@ Want to compile and install something, but not need to hold on to the source?
 Python Module
 -------------
 
-*This exists too.*
+*...*
 
+License (MIT)
+-------------
+
+Copyright 2011 Jeremy Banks
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
