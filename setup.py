@@ -6,16 +6,16 @@ import tmpdir
 name = "tmpdir"
 version = tmpdir.__version__
 
-url = "https://github.com/jeremybanks/tmpdir"
+url = tmpdir.__website__
 pypi_url = "http://pypi.python.org/pypi/" + name
 pypi_versioned_url = "http://pypi.python.org/pypi/" + name + "/" + version
 
-description = "A module and command-line tool for working with temporary directories."
+description = tmpdir.__doc__.partition("\n")[0]
 
 try:
     long_description = open(os.path.join(os.path.dirname(__file__), "README.md")).read()
 except Exception:
-    long_description = None
+    long_description = tmpdir.__doc__
 
 setuptools.setup(
     name = name,
@@ -28,6 +28,8 @@ setuptools.setup(
     long_description = long_description,
     
     py_modules = ["tmpdir"],
+    
+    data_files=[("", ["README.md"])],
     
     entry_points = {
         "console_scripts": [
