@@ -91,7 +91,7 @@ Python Module
 License (MIT)
 -------------
 
-Copyright 2011 Jeremy Banks
+Copyright 2011 Jeremy Banks <jeremy@jeremybanks.ca>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

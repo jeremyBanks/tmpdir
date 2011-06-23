@@ -1,12 +1,10 @@
 #!/usr/bin/env python2.6
 import setuptools 
-import datetime
 import os.path
-
-# timestamped 0.0.dev versions
-version = datetime.datetime.utcnow().strftime("0.0.dev-%Y-%m-%dT%H%MZ")
+import tmpdir
 
 name = "tmpdir"
+version = tmpdir.__version__
 
 url = "https://github.com/jeremybanks/tmpdir"
 pypi_url = "http://pypi.python.org/pypi/" + name

@@ -1,4 +1,7 @@
-#!/usr/bin/env python2.6
+#!/usr/bin/env python
+"""A module and command line tool for working with temporary directories."""
+
+import calendar
 import contextlib
 import os
 import os.path
@@ -8,9 +11,37 @@ import shutil
 import string
 import subprocess
 import sys
+import time
 import tarfile
 import tempfile
 import zipfile
+
+__version_info__ = 0, 0, 0, "DEV", int(calendar.timegm(time.gmtime()))
+__version__ = ".".join(str(part) for part in __version_info__)
+
+__website__ = "https://github.com/jeremybanks/tmpdir"
+__author__ = "Jeremy Banks <jeremy@jeremybanks.ca>"
+
+__copyright__ = "Copyright 2011 Jeremy Banks <jeremy@jeremybanks.ca>"
+__license__ = "MIT"
+__full_license = """\
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE."""
 
 class TmpDir(object):
     """A convenient temporary directory.
@@ -171,8 +202,6 @@ class TmpDir(object):
                         for dirname in dirs:
                             archive_add(os.path.join(path, dirname))
 
-load = TmpDir.load
-
 class WorkingDirectoryContextManager(object):
     def __init__(self, path, value=None):
         self.path = path
@@ -279,9 +308,7 @@ def pseudosecure_delete_directory(path):
     # remove the top directory itself
     shutil.rmtree(path)
 
-#######################################################################
-
-def main(raw_args=None):
+def main(*raw_args):
     import optparse
     import tmpdir
     
@@ -316,7 +343,7 @@ securely. In other cases, use the options.""")
                       help="run this command in directory instead of default")
     
     parser.set_defaults(secure=None, out=None, command=None)
-    options, args = parser.parse_args(raw_args)
+    options, args = parser.parse_args(list(raw_args))
     
     if options.command is None:
         if hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
@@ -387,6 +414,5 @@ securely. In other cases, use the options.""")
         sys.stderr.write("(secure delete: %s)\n" % (d.secure))
         sys.stderr.flush()
 
-
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(*sys.argv[1:]))
