@@ -224,6 +224,7 @@ def sniff_archive_type(f, default="tar"):
     types_by_extension = {
         ".bz2": "bz2",
         ".tbz": "bz2",
+        ".tb2": "bz2",
         ".tbz2": "bz2",
         ".zip": "zip",
         ".gzip": "gz",
