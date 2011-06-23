@@ -1,5 +1,7 @@
 #!/bin/sh
-git commit . -m "(autocommitting before attempting publication)";
+if [ "$(git rev-parse HEAD)" = "$(git rev-parse master)" ]; then
+	git commit . -m "(autocommitting before attempting publication)";
+fi
 if [ "$(git rev-parse HEAD)" = "$(git rev-parse master)" ]; then
 	sudo python2.6 setup.py clean build sdist install &&
 	sudo python2.7 setup.py clean build sdist upload;
