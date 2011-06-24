@@ -32,7 +32,7 @@ it, then deletes it. All options/arguments are optional.
                dumps folder contents into an archive after command exits.
            
            -c, --command="foo [bar bar bar...]"
-           -h, --shell="echo foo > bar"
+           -s, --shell="echo foo > bar"
                specifies the command to run in the directory.
                use --shell to run inside /bin/sh.
            

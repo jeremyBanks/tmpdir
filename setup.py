@@ -21,6 +21,8 @@ setuptools.setup(
     name = name,
     version = version,
     
+    install_requires=["argparse>1.1, <2"],
+    
     url = url,
     download_url = pypi_versioned_url,
     

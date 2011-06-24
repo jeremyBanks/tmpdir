@@ -52,24 +52,25 @@ class TmpDir(object):
            if "attempt" will not fail if insecure.
     """
     
-    def __init__(self, inner_name=None, secure=False):
+    def __init__(self, inner_name=None, deletion=False):
         self.closed = True
         
-        if secure not in ("attempt", "pseudo"):
-            secure = bool(secure)
+        if deletion not in ("secure", "attempt-secure", "pseudo-secure",
+                            "not-secure"):
+            raise ArgumentError("Invalid deletion type.")
         
-        if secure == True or secure == "attempt":
+        if deletion in ("secure", "attempt-secure"):
             # confirm availability of secure remove command
             try:
                 subprocess.check_call("which srm >/dev/null", shell=True)
-                secure = True
+                deletion = "secure"
             except subprocess.CalledProcessError, e:
-                if secure == "attempt":
-                    secure = "pseudo"
+                if deletion == "attempt-secure":
+                    deletion = "pseudo-secure"
                 else:
                     raise e
         
-        self.secure = secure
+        self.deletion = deletion
         
         self.__outer_path = tempfile.mkdtemp()
         self.inner_name = inner_name or "tmp"
@@ -89,10 +90,10 @@ class TmpDir(object):
             self.closed = True
             self.path = new_path
             
-            if not self.secure:
+            if not self.deletion:
                 shutil.rmtree(tmp_path)
                 shutil.rmtree(self.__outer_path)
-            elif self.secure == "pseudo":
+            elif self.deletion == "pseudo-secure":
                 pseudosecure_delete_directory(tmp_path)
                 pseudosecure_delete_directory(self.__outer_path)
             else:
@@ -124,13 +125,13 @@ class TmpDir(object):
     # .dump(f, compression="gz")
     
     @classmethod
-    def load(cls, f, compression=None, inner_name=None, secure=None):
+    def load(cls, f, compression=None, inner_name=None, deletion=None):
         """Loads a temp directory from an optionally-compressed tar file.
         
         If compression is None, it will read the first two bytes of the
         stream to look for gzip or bz2 magic numbers, then seek back. To
         disable this (if your file object doesn't support it) you can use
-        the null string "" to indicate an uncompressed tar. Other options
+        the null string "" to indicate an uncompressed tar. Other args
         are "bz2" and "gz".
         """
         
@@ -141,7 +142,7 @@ class TmpDir(object):
             compression = sniff_archive_type(f, "tar")
         
         mode = mode="r:" + compression
-        self = cls(inner_name, secure)
+        self = cls(inner_name, deletion)
         
         if compression == "zip":
             archive = zipfile.ZipFile(f, mode="r")
@@ -310,82 +311,71 @@ def pseudosecure_delete_directory(path):
     shutil.rmtree(path)
 
 def main(*raw_args):
-    import optparse
+    import argparse
     import tmpdir
     
-    parser = optparse.OptionParser(usage="""Usage: %prog [options] [archive]
-
+    parser = argparse.ArgumentParser(description="""\
 Creates a temporary directory, optionally loading the contents of an archive
 (tar, tgz, tbz2 or zip). If run from a shell, opens a bash login shell inside
 the directory. Otherwise by default I'll prompt for a newline then exit, but
 any other command can be specified.
 
 If an empty directory is created, I automatically attempt to delete it
-securely. In other cases, use the options.""")
+securely. In other cases, use the args.""")
     
-    parser.add_option("-s", "--secure", dest="secure",
-                      action="store_const", const=True,
-                      help="delete the directory with srm --simple")
-    parser.add_option("-u", "--pseudo-secure", dest="secure",
-                      action="store_const", const="pseudo",
-                      help="delete the directory in a maybe-secure way")
-    parser.add_option("-t", "--attempt-secure", dest="secure",
-                      action="store_const", const="attempt",
-                      help="try --secure, fall back to --pseudo-secure")
-    parser.add_option("-n", "--not-secure", dest="secure",
-                      action="store_const", const=False,
-                        help="delete the directory normally")
+    parser.add_argument(dest="archive", metavar="$ARCHIVE", nargs="?",
+                        help="loads an archive into the directory.")
     
-    parser.add_option("-o", "--out", dest="out",
-                      action="store", type="string", metavar="ARCHIVE",
-                      help="save an archive of the directory as this filename")
-    parser.add_option("-c", "--command", dest="command",
-                      action="store", type="string", metavar="COMMAND",
+    parser.add_argument("-o", "--out", dest="out",
+                      action="store", type=str, metavar="$ARCHIVE",
+                      help="saves directory as an archive.")
+    
+    command_options = parser.add_mutually_exclusive_group()
+    command_options.add_argument("-c", "--command", dest="command",
+                      action="store", type=str, metavar="$COMMAND",
                       help="run this command in directory instead of default")
+    command_options.add_argument("-s", "--shell", dest="shell_command",
+                      action="store", type=str, metavar="$COMMAND",
+                      help="as --command, but run in /bin/sh/")
     
-    parser.set_defaults(secure=None, out=None, command=None)
-    options, args = parser.parse_args(list(raw_args))
+    parser.add_argument("-d", "--delete", dest="deletion", metavar="$SECURITY",
+                        choices=["secure", "pseudo-secure", "attempt-secure",
+                                 "not-secure"],
+                        help="Specifies the deletion method/security.")
     
-    if options.command is None:
+    parser.set_defaults(deletion=None, archive=None, out=None, command=None,
+                        shell_command=None)
+    args = parser.parse_args(list(raw_args))
+    
+    if args.command is None:
         if hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
             command = ["bash", "--login"]
         else:
             command = ["read", "-p", "Press enter to delete directory..."]
     else:
-        command = shlex.split(options.command)
+        command = shlex.split(args.command)
     
-    if len(args) > 1:
-        raise ArgumenError("Too many arguments.")
-    elif args:
-        path = args[0]
-    else:
-        path = None
+    path = args.archive
     
-    secure = options.secure
-    
-    if secure is None:
-        if path:
-            secure = False
-        else:
-            secure = "attempt"
+    deletion = args.deletion
     
     if path is None:
-        if secure is None:
-            secure = "attempt"
+        if deletion is None:
+            deletion = "attempt-secure"
         
         sys.stderr.write("Initializing temporary directory... ")
-        d = tmpdir.TmpDir(secure=secure)
+        d = tmpdir.TmpDir(deletion=deletion)
     else:
-        if secure is None:
-            secure = False
+        if deletion is None:
+            deletion = "not-secure"
         
         sys.stderr.write("Loading archive to temporary directory... ")
         
         with open(path, "rb") as f:
-            d = TmpDir.load(f, inner_name=os.path.basename(path), secure=secure)
+            d = TmpDir.load(f, inner_name=os.path.basename(path), deletion=deletion)
     
     with d:
-        sys.stderr.write("(secure delete: %s)\n" % (d.secure))
+        sys.stderr.write("(deletion: %s)\n" % (d.deletion))
         sys.stderr.flush()
         
         print d.path
@@ -404,15 +394,15 @@ securely. In other cases, use the options.""")
         
         sys.stderr.write("----"  * 4 + "\n")
         
-        if options.out:
+        if args.out:
             sys.stderr.write("Archiving directory contents...\n")
             sys.stderr.flush()
             
-            with open(options.out, "wb") as f:
+            with open(args.out, "wb") as f:
                 d.dump(f)
         
         sys.stderr.write("Deleting temporary directory... ")
-        sys.stderr.write("(secure delete: %s)\n" % (d.secure))
+        sys.stderr.write("(deletion: %s)\n" % (d.deletion))
         sys.stderr.flush()
 
 if __name__ == "__main__":
