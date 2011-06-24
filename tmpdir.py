@@ -343,8 +343,8 @@ securely. In other cases, use the args.""")
                                  "not-secure"],
                         help="Specifies the deletion method/security.")
     
-    # parser.add_argument("-r", "--on-error", dest="on_error", metavar="$ON_ERROR",
-                        # choices=["ignore", "fail", "abort"], default="fail")
+    parser.add_argument("-r", "--on-error", dest="on_error", metavar="$ON_ERROR",
+                        choices=["ignore", "fail", "abort"], default="fail")
     
     parser.set_defaults(deletion=None, archive=None, out=None, command=None,
                         shell_command=None)
@@ -391,15 +391,22 @@ securely. In other cases, use the args.""")
             sys.stderr.write(command[2])
             sys.stderr.flush()
             sys.stdin.read(1)
+            
+            sub_status = 0
         else:
             env = dict(os.environ)
             env["HISTFILE"] = ""
             
-            subprocess.call(command, cwd=d.path, env=env)
+            sub_status = subprocess.call(command, cwd=d.path, env=env)
         
-        sys.stderr.write("----"  * 4 + "\n")
+        if sub_status and args.on_error != "ignore":
+            our_status = sub_status
+        else:
+            our_status = 0
         
-        if args.out:
+        sys.stderr.write("----" * 4 + "\n")
+        
+        if args.out and not (sub_status != 0 and args.on_error == "abort"):
             sys.stderr.write("Archiving directory contents...\n")
             sys.stderr.flush()
             
@@ -409,6 +416,8 @@ securely. In other cases, use the args.""")
         sys.stderr.write("Deleting temporary directory... ")
         sys.stderr.write("(deletion: %s)\n" % (d.deletion))
         sys.stderr.flush()
+        
+        return our_status
 
 if __name__ == "__main__":
     sys.exit(main(*sys.argv[1:]))
