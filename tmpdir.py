@@ -343,6 +343,9 @@ securely. In other cases, use the args.""")
                                  "not-secure"],
                         help="Specifies the deletion method/security.")
     
+    # parser.add_argument("-r", "--on-error", dest="on_error", metavar="$ON_ERROR",
+                        # choices=["ignore", "fail", "abort"], default="fail")
+    
     parser.set_defaults(deletion=None, archive=None, out=None, command=None,
                         shell_command=None)
     args = parser.parse_args(list(raw_args))
