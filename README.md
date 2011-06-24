@@ -47,7 +47,7 @@ it, then deletes it. All options/arguments are optional.
                        =not-secure
                            deletes directory normally.
            
-           -r, --on-error=ignore NOT IMPLEMENTED ATM SORRY
+           -r, --on-error=ignore
                              discard subcommand exit status.
                          =fail (default)
                              returns exit status from subcommand.

@@ -351,7 +351,9 @@ securely. In other cases, use the args.""")
     args = parser.parse_args(list(raw_args))
     
     if args.command is None:
-        if hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
+        if args.shell_command is not None:
+            command = ["/bin/sh", "-c", args.shell_command]
+        elif hasattr(sys.stdin, "isatty") and sys.stdin.isatty():
             command = ["bash", "--login"]
         else:
             command = ["read", "-p", "Press enter to delete directory..."]
@@ -384,7 +386,7 @@ securely. In other cases, use the args.""")
         print d.path
         
         sys.stderr.write("----" * 4 + "\n")
-
+        
         if len(command) == 3 and command[:2] == ["read", "-p"]:
             sys.stderr.write(command[2])
             sys.stderr.flush()
